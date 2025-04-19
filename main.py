@@ -20,9 +20,10 @@ client = ApiClient(configuration)
 line_bot_api = MessagingApi(client)
 
 # Supabaseの設定
+# サービスロールキーを使用してRLSをバイパス
 supabase: Client = create_client(
     os.getenv('SUPABASE_URL'),
-    os.getenv('SUPABASE_KEY')
+    os.getenv('SUPABASE_SERVICE_ROLE_KEY', os.getenv('SUPABASE_KEY'))  # サービスロールキーがない場合は通常のキーを使用
 )
 
 app = FastAPI()
