@@ -47,20 +47,18 @@ def parse_task_message(message: str) -> tuple[str, time | None]:
 
 @app.post("/callback")
 async def callback(request: Request):
-    signature = request.headers.get('X-Line-Signature')
+    signature = request.headers.get('X-Line-Signature', '')
     body = await request.body()
     body_str = body.decode()
     
     try:
-        events = handler.parse(body_str, signature)
-        for event in events:
-            if isinstance(event, MessageEvent):
-                handle_message(event)
+        handler.handle(body_str, signature)
     except InvalidSignatureError:
         raise HTTPException(status_code=400, detail="Invalid signature")
     
     return "OK"
 
+@handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     user_id = event.source.user_id
     message = event.message.text
