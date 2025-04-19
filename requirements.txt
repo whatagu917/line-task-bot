@@ -2,6 +2,7 @@ fastapi==0.109.2
 uvicorn==0.27.1
 line-bot-sdk==3.7.0
 python-dotenv==1.0.1
-supabase==2.3.4
+supabase==1.2.0
+gotrue==1.1.0
 python-dateutil==2.8.2
 gunicorn==21.2.0 
