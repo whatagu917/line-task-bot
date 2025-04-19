@@ -71,8 +71,8 @@ def handle_message(event):
             'user_id': user_id,
             'content': task_content,
             'is_done': False,
-            'scheduled_date': datetime.now().date(),
-            'scheduled_time': task_time
+            'scheduled_date': datetime.now().date().isoformat(),
+            'scheduled_time': task_time.strftime('%H:%M') if task_time else None
         }
         
         supabase.table('tasks').insert(data).execute()
@@ -96,7 +96,8 @@ def handle_message(event):
     
     elif message in ['リスト', '今日のタスク']:
         # タスク一覧表示
-        response = supabase.table('tasks').select('*').eq('user_id', user_id).eq('scheduled_date', datetime.now().date()).order('scheduled_time').execute()
+        today = datetime.now().date().isoformat()
+        response = supabase.table('tasks').select('*').eq('user_id', user_id).eq('scheduled_date', today).order('scheduled_time').execute()
         tasks = response.data
         
         if not tasks:
