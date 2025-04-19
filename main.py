@@ -45,19 +45,22 @@ def parse_task_message(message: str) -> tuple[str, time | None]:
     
     return task_content, task_time
 
-@app.post("/webhook")
-async def webhook(request: Request):
+@app.post("/callback")
+async def callback(request: Request):
     signature = request.headers.get('X-Line-Signature')
     body = await request.body()
+    body_str = body.decode()
     
     try:
-        handler.handle(body.decode(), signature)
+        events = handler.parse(body_str, signature)
+        for event in events:
+            if isinstance(event, MessageEvent):
+                handle_message(event)
     except InvalidSignatureError:
         raise HTTPException(status_code=400, detail="Invalid signature")
     
     return "OK"
 
-@handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     user_id = event.source.user_id
     message = event.message.text
@@ -121,4 +124,4 @@ def handle_message(event):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000) 
+    uvicorn.run(app, host="0.0.0.0", port=8000) 
