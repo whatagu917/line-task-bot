@@ -47,7 +47,12 @@ JST = ZoneInfo('Asia/Tokyo')
 
 def get_current_jst_datetime() -> datetime:
     """現在の日本時間をdatetimeオブジェクトとして返す"""
-    return datetime.now(JST)
+    # システムの現在時刻を取得
+    now = datetime.now()
+    # タイムゾーン情報を付与
+    now = now.replace(tzinfo=JST)
+    print(f"get_current_jst_datetime: システム時刻 = {now}")
+    return now
 
 def get_current_jst_date() -> datetime:
     """現在の日本時間を返す"""
@@ -188,6 +193,8 @@ def get_system_prompt() -> str:
 def process_message_with_llm(message: str) -> Dict[str, Any]:
     """LLMを使用してメッセージを処理し、アクションを判断する"""
     try:
+        print(f"process_message_with_llm: 入力メッセージ = {message}")
+        
         client = openai.OpenAI()
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -201,11 +208,18 @@ def process_message_with_llm(message: str) -> Dict[str, Any]:
         # 応答をJSONとして解析
         import json
         result = json.loads(response.choices[0].message.content)
+        print(f"process_message_with_llm: LLM応答 = {result}")
         
         # 日付の解析を改善
         if result.get('date'):
-            parsed_date = parse_date(result['date'])
-            result['date'] = parsed_date.strftime('%Y-%m-%d')
+            print(f"process_message_with_llm: 日付の解析前 = {result['date']}")
+            # 今日の予定を要求している場合は日付を空にする
+            if result['date'].lower() in ['今日', 'きょう', 'today']:
+                result['date'] = None
+            else:
+                parsed_date = parse_date(result['date'])
+                result['date'] = parsed_date.strftime('%Y-%m-%d')
+            print(f"process_message_with_llm: 日付の解析後 = {result['date']}")
         
         return result
     except Exception as e:
