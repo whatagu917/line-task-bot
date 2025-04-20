@@ -47,10 +47,12 @@ JST = ZoneInfo('Asia/Tokyo')
 
 def get_current_jst_datetime() -> datetime:
     """現在の日本時間をdatetimeオブジェクトとして返す"""
-    # システムの現在時刻を取得
+    # システムの現在時刻を取得（UTC）
     now = datetime.now()
     # タイムゾーン情報を付与
-    now = now.replace(tzinfo=JST)
+    now = now.replace(tzinfo=ZoneInfo('UTC'))
+    # 日本時間に変換
+    now = now.astimezone(JST)
     print(f"get_current_jst_datetime: システム時刻 = {now}")
     return now
 
