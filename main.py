@@ -15,6 +15,7 @@ import time as time_module
 import openai
 from typing import Optional, Dict, Any
 from zoneinfo import ZoneInfo
+import dateparser
 
 # 環境変数の読み込み
 load_dotenv()
@@ -77,17 +78,20 @@ def get_system_prompt() -> str:
 2. タスクの完了
 3. タスク一覧の表示
 4. 特定の日付のタスク一覧表示
+5. リマインドの設定
 
 応答は以下のJSON形式で返してください：
 {
-    "action": "register" | "complete" | "list" | "list_date",
+    "action": "register" | "complete" | "list" | "list_date" | "remind",
     "task_content": "タスクの内容",
     "date": "日付（YYYY-MM-DD形式）",
-    "time": "時間（HH:MM形式）"
+    "time": "時間（HH:MM形式）",
+    "remind_time": "リマインド時間（HH:MM形式）"
 }
 
 日付や時間が指定されていない場合は、nullを返してください。
 タスク一覧の表示の場合は、dateに表示したい日付を指定してください。
+リマインドの設定の場合は、remind_timeにリマインドしたい時間を指定してください。
 """
 
 def process_message_with_llm(message: str) -> Dict[str, Any]:
@@ -106,12 +110,19 @@ def process_message_with_llm(message: str) -> Dict[str, Any]:
         # 応答をJSONとして解析
         import json
         result = json.loads(response.choices[0].message.content)
+        
+        # 日付の解析を改善
+        if result.get('date'):
+            parsed_date = dateparser.parse(result['date'], languages=['ja'])
+            if parsed_date:
+                result['date'] = parsed_date.strftime('%Y-%m-%d')
+        
         return result
     except Exception as e:
         print(f"Error processing message with LLM: {str(e)}")
         return None
 
-def handle_task_registration(user_id: str, task_content: str, date: str, time: str) -> str:
+def handle_task_registration(user_id: str, task_content: str, date: str, time: str, remind_time: str = None) -> str:
     """タスクを登録する"""
     try:
         data = {
@@ -119,7 +130,8 @@ def handle_task_registration(user_id: str, task_content: str, date: str, time: s
             'content': task_content,
             'is_done': False,
             'scheduled_date': date,
-            'scheduled_time': time
+            'scheduled_time': time,
+            'remind_time': remind_time
         }
         
         supabase.table('tasks').insert(data).execute()
@@ -129,8 +141,9 @@ def handle_task_registration(user_id: str, task_content: str, date: str, time: s
         task_date = datetime.strptime(date, '%Y-%m-%d').date()
         date_str = '今日' if task_date == current_date else task_date.strftime('%m/%d')
         time_str = f' {time}' if time else ''
+        remind_str = f'\nリマインド: {remind_time}' if remind_time else ''
         
-        return f'タスクを登録しました:\n{date_str}{time_str} {task_content}'
+        return f'タスクを登録しました:\n{date_str}{time_str} {task_content}{remind_str}'
     except Exception as e:
         return f'タスクの登録に失敗しました: {str(e)}'
 
@@ -173,6 +186,27 @@ def handle_task_list(user_id: str, date: str = None) -> str:
     except Exception as e:
         return f'タスク一覧の取得に失敗しました: {str(e)}'
 
+def handle_reminder(user_id: str, date: str, time: str) -> str:
+    """指定された日時のタスクをリマインドする"""
+    try:
+        query = supabase.table('tasks').select('*').eq('user_id', user_id).eq('scheduled_date', date)
+        if time:
+            query = query.eq('scheduled_time', time)
+        
+        response = query.execute()
+        tasks = response.data
+        
+        if not tasks:
+            return f'{date} {time if time else ""}の予定はありません'
+        
+        task_list = [f'【{date} {time if time else ""}の予定】']
+        for task in tasks:
+            task_list.append(f"・{task['content']}")
+        
+        return '\n'.join(task_list)
+    except Exception as e:
+        return f'予定の取得に失敗しました: {str(e)}'
+
 @app.post("/callback")
 async def callback(request: Request):
     signature = request.headers.get('X-Line-Signature', '')
@@ -209,7 +243,7 @@ def handle_message(event):
         if result['action'] == 'register':
             if not result.get('task_content'):
                 raise ValueError("タスクの内容が指定されていません")
-            response_text = handle_task_registration(user_id, result['task_content'], result['date'], result['time'])
+            response_text = handle_task_registration(user_id, result['task_content'], result['date'], result['time'], result.get('remind_time'))
         elif result['action'] == 'complete':
             if not result.get('task_content'):
                 raise ValueError("完了するタスクが指定されていません")
@@ -218,6 +252,8 @@ def handle_message(event):
             response_text = handle_task_list(user_id)
         elif result['action'] == 'list_date':
             response_text = handle_task_list(user_id, result['date'])
+        elif result['action'] == 'remind':
+            response_text = handle_reminder(user_id, result['date'], result['time'])
         else:
             raise ValueError("不明なアクションです")
         
