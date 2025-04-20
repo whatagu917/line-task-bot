@@ -85,7 +85,8 @@ def get_system_prompt() -> str:
 def process_message_with_llm(message: str) -> Dict[str, Any]:
     """LLMを使用してメッセージを処理し、アクションを判断する"""
     try:
-        response = openai.ChatCompletion.create(
+        client = openai.OpenAI()
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": get_system_prompt()},
