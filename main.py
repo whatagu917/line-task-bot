@@ -33,6 +33,7 @@ app = FastAPI()
 
 # スリープ防止のための自己ping
 RENDER_URL = os.getenv('RENDER_URL')
+PORT = int(os.getenv('PORT', 10000))
 
 def keep_alive():
     while True:
@@ -147,4 +148,4 @@ def handle_message(event):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    uvicorn.run(app, host="0.0.0.0", port=PORT) 

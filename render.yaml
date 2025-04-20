@@ -17,6 +17,8 @@ services:
         sync: false
       - key: RENDER_URL
         sync: false
+      - key: PORT
+        value: 10000
   - type: cron
     name: morning-notification
     env: python
