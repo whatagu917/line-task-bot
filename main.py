@@ -116,27 +116,24 @@ async def root():
     return {"message": "LINE Task Management Bot is running!"}
 
 def get_system_prompt() -> str:
-    """システムプロンプトを返す"""
-    return """あなたはタスク管理アシスタントです。ユーザーのメッセージを解析し、以下のアクションを判断してください：
+    return """あなたはタスク管理アシスタントです。ユーザーのメッセージを解析し、適切なアクションを判断してください。
 
-1. タスクの登録
-2. タスクの完了
-3. タスク一覧の表示
-4. 特定の日付のタスク一覧表示
-5. リマインドの設定
+アクションの種類：
+1. register: タスクの登録
+2. complete: タスクの完了
+3. list: タスク一覧の表示
+4. list_date: 特定の日付のタスク一覧
+5. remind: リマインドの設定
+6. current_time: 現在の日時を確認
 
 応答は以下のJSON形式で返してください：
 {
-    "action": "register" | "complete" | "list" | "list_date" | "remind",
+    "action": "register" | "complete" | "list" | "list_date" | "remind" | "current_time",
     "task_content": "タスクの内容",
     "date": "日付（YYYY-MM-DD形式）",
     "time": "時間（HH:MM形式）",
     "remind_time": "リマインド時間（HH:MM形式）"
 }
-
-日付や時間が指定されていない場合は、nullを返してください。
-タスク一覧の表示の場合は、dateに表示したい日付を指定してください。
-リマインドの設定の場合は、remind_timeにリマインドしたい時間を指定してください。
 """
 
 def process_message_with_llm(message: str) -> Dict[str, Any]:
@@ -270,6 +267,11 @@ def handle_reminder(user_id: str, date: str, time: str) -> str:
     except Exception as e:
         return f'予定の取得に失敗しました: {str(e)}'
 
+def handle_current_time() -> str:
+    """現在の日時を返す"""
+    current_datetime = get_current_jst_datetime()
+    return f'現在の日時は {current_datetime.strftime("%Y年%m月%d日 %H時%M分")} です。'
+
 @app.post("/callback")
 async def callback(request: Request):
     signature = request.headers.get('X-Line-Signature', '')
@@ -288,35 +290,35 @@ def handle_message(event):
     user_id = event.source.user_id
     message = event.message.text
     
+    # メッセージが空の場合は処理をスキップ
+    if not message.strip():
+        return
+
     # LLMでメッセージを処理
     result = process_message_with_llm(message)
-    
     if not result:
-        line_bot_api.reply_message_with_http_info(
-            {
-                'replyToken': event.reply_token,
-                'messages': [TextMessage(text='申し訳ありません。メッセージの処理に失敗しました。もう一度お試しください。')]
-            }
-        )
         return
-    
+
     # アクションに応じて処理
     try:
         response_text = ""
-        if result['action'] == 'register':
+        action = result['action']
+        if action == 'register':
             if not result.get('task_content'):
                 raise ValueError("タスクの内容が指定されていません")
             response_text = handle_task_registration(user_id, result['task_content'], result['date'], result['time'], result.get('remind_time'))
-        elif result['action'] == 'complete':
+        elif action == 'complete':
             if not result.get('task_content'):
                 raise ValueError("完了するタスクが指定されていません")
             response_text = handle_task_completion(user_id, result['task_content'])
-        elif result['action'] == 'list':
+        elif action == 'list':
             response_text = handle_task_list(user_id)
-        elif result['action'] == 'list_date':
+        elif action == 'list_date':
             response_text = handle_task_list(user_id, result['date'])
-        elif result['action'] == 'remind':
+        elif action == 'remind':
             response_text = handle_reminder(user_id, result['date'], result['time'])
+        elif action == 'current_time':
+            response_text = handle_current_time()
         else:
             raise ValueError("不明なアクションです")
         
