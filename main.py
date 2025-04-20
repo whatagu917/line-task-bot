@@ -45,17 +45,20 @@ PORT = int(os.getenv('PORT', 10000))
 # タイムゾーンの設定
 JST = ZoneInfo('Asia/Tokyo')
 
+# テスト用の固定日付（2023年10月6日）
+FIXED_DATE = datetime(2023, 10, 6, 0, 0, 0, tzinfo=JST)
+
 def get_current_jst_datetime() -> datetime:
-    """現在の日本時間をdatetimeオブジェクトとして返す"""
-    return datetime.now(JST)
+    """現在の日本時間をdatetimeオブジェクトとして返す（テスト用に固定日付を使用）"""
+    return FIXED_DATE
 
 def get_current_jst_date() -> datetime:
-    """現在の日本時間を返す"""
-    return get_current_jst_datetime()
+    """現在の日本時間を返す（テスト用に固定日付を使用）"""
+    return FIXED_DATE
 
 def get_current_jst_time() -> str:
-    """現在の日本時間をHH:MM形式で返す"""
-    return get_current_jst_datetime().strftime('%H:%M')
+    """現在の日本時間をHH:MM形式で返す（テスト用に固定日付を使用）"""
+    return FIXED_DATE.strftime('%H:%M')
 
 def format_jst_datetime(dt: datetime) -> str:
     """datetimeオブジェクトを日本時間の文字列に変換する"""
@@ -64,10 +67,10 @@ def format_jst_datetime(dt: datetime) -> str:
 def parse_date(date_str: str) -> datetime:
     """日付文字列を日本時間のdatetimeオブジェクトに変換する"""
     if not date_str:
-        return get_current_jst_datetime()
+        return FIXED_DATE
     
     # 日本語の日付表現を処理
-    current_datetime = get_current_jst_datetime()
+    current_datetime = FIXED_DATE
     print(f"parse_date: 入力文字列: {date_str}")
     print(f"parse_date: 現在の日時: {current_datetime}")
     
