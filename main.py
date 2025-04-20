@@ -56,7 +56,7 @@ def keep_alive():
                 print("Ping sent successfully")
         except Exception as e:
             print(f"Ping failed: {str(e)}")
-        time_module.sleep(60 * 14)  # 14分ごとにping
+        time_module.sleep(60)  # 1分ごとにping
 
 @app.on_event("startup")
 async def startup_event():
@@ -198,28 +198,47 @@ def handle_message(event):
         line_bot_api.reply_message_with_http_info(
             {
                 'replyToken': event.reply_token,
-                'messages': [TextMessage(text='メッセージの処理に失敗しました。もう一度お試しください。')]
+                'messages': [TextMessage(text='申し訳ありません。メッセージの処理に失敗しました。もう一度お試しください。')]
             }
         )
         return
     
     # アクションに応じて処理
-    response_text = ""
-    if result['action'] == 'register':
-        response_text = handle_task_registration(user_id, result['task_content'], result['date'], result['time'])
-    elif result['action'] == 'complete':
-        response_text = handle_task_completion(user_id, result['task_content'])
-    elif result['action'] == 'list':
-        response_text = handle_task_list(user_id)
-    elif result['action'] == 'list_date':
-        response_text = handle_task_list(user_id, result['date'])
-    
-    line_bot_api.reply_message_with_http_info(
-        {
-            'replyToken': event.reply_token,
-            'messages': [TextMessage(text=response_text)]
-        }
-    )
+    try:
+        response_text = ""
+        if result['action'] == 'register':
+            if not result.get('task_content'):
+                raise ValueError("タスクの内容が指定されていません")
+            response_text = handle_task_registration(user_id, result['task_content'], result['date'], result['time'])
+        elif result['action'] == 'complete':
+            if not result.get('task_content'):
+                raise ValueError("完了するタスクが指定されていません")
+            response_text = handle_task_completion(user_id, result['task_content'])
+        elif result['action'] == 'list':
+            response_text = handle_task_list(user_id)
+        elif result['action'] == 'list_date':
+            response_text = handle_task_list(user_id, result['date'])
+        else:
+            raise ValueError("不明なアクションです")
+        
+        # 応答テキストが空の場合はエラーメッセージを設定
+        if not response_text:
+            response_text = "申し訳ありません。処理中にエラーが発生しました。もう一度お試しください。"
+        
+        line_bot_api.reply_message_with_http_info(
+            {
+                'replyToken': event.reply_token,
+                'messages': [TextMessage(text=response_text)]
+            }
+        )
+    except Exception as e:
+        print(f"Error in handle_message: {str(e)}")
+        line_bot_api.reply_message_with_http_info(
+            {
+                'replyToken': event.reply_token,
+                'messages': [TextMessage(text=f"申し訳ありません。エラーが発生しました: {str(e)}")]
+            }
+        )
 
 if __name__ == "__main__":
     import uvicorn
