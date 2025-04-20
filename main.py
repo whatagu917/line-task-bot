@@ -53,11 +53,16 @@ def keep_alive():
     while True:
         try:
             if RENDER_URL:
-                requests.get(RENDER_URL)
-                print("Ping sent successfully")
+                response = requests.get(RENDER_URL, timeout=10)
+                if response.status_code == 200:
+                    print("Ping sent successfully")
+                else:
+                    print(f"Ping failed with status code: {response.status_code}")
+        except requests.exceptions.Timeout:
+            print("Ping timeout")
         except Exception as e:
             print(f"Ping failed: {str(e)}")
-        time_module.sleep(60)  # 1分ごとにping
+        time_module.sleep(30)  # 30秒ごとにping
 
 @app.on_event("startup")
 async def startup_event():
