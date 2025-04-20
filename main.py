@@ -45,17 +45,17 @@ PORT = int(os.getenv('PORT', 10000))
 # タイムゾーンの設定
 JST = ZoneInfo('Asia/Tokyo')
 
-def get_current_jst_date() -> datetime:
-    """現在の日本時間を返す"""
-    return datetime.now(JST)
-
-def get_current_jst_time() -> str:
-    """現在の日本時間をHH:MM形式で返す"""
-    return datetime.now(JST).strftime('%H:%M')
-
 def get_current_jst_datetime() -> datetime:
     """現在の日本時間をdatetimeオブジェクトとして返す"""
     return datetime.now(JST)
+
+def get_current_jst_date() -> datetime:
+    """現在の日本時間を返す"""
+    return get_current_jst_datetime()
+
+def get_current_jst_time() -> str:
+    """現在の日本時間をHH:MM形式で返す"""
+    return get_current_jst_datetime().strftime('%H:%M')
 
 def format_jst_datetime(dt: datetime) -> str:
     """datetimeオブジェクトを日本時間の文字列に変換する"""
@@ -64,16 +64,16 @@ def format_jst_datetime(dt: datetime) -> str:
 def parse_date(date_str: str) -> datetime:
     """日付文字列を日本時間のdatetimeオブジェクトに変換する"""
     if not date_str:
-        return get_current_jst_date()
+        return get_current_jst_datetime()
     
     # 日本語の日付表現を処理
-    current_date = get_current_jst_date()
+    current_datetime = get_current_jst_datetime()
     if date_str.lower() in ['今日', 'きょう', 'today']:
-        return current_date
+        return current_datetime
     elif date_str.lower() in ['明日', 'あした', 'あす', 'tomorrow']:
-        return current_date + timedelta(days=1)
+        return current_datetime + timedelta(days=1)
     elif date_str.lower() in ['明後日', 'あさって', 'day after tomorrow']:
-        return current_date + timedelta(days=2)
+        return current_datetime + timedelta(days=2)
     
     # その他の日付表現を解析
     parsed_date = dateparser.parse(date_str, languages=['ja'])
@@ -82,12 +82,12 @@ def parse_date(date_str: str) -> datetime:
         if parsed_date.tzinfo is None:
             parsed_date = parsed_date.replace(tzinfo=JST)
         # 日付が過去の場合は翌日に設定
-        if parsed_date.date() < current_date.date():
+        if parsed_date.date() < current_datetime.date():
             parsed_date = parsed_date + timedelta(days=1)
         return parsed_date
     
     # 日付が解析できない場合は今日の日付を使用
-    return current_date
+    return current_datetime
 
 def keep_alive():
     while True:
