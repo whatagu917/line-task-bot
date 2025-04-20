@@ -68,29 +68,43 @@ def parse_date(date_str: str) -> datetime:
     
     # 日本語の日付表現を処理
     current_datetime = get_current_jst_datetime()
+    print(f"parse_date: 入力文字列: {date_str}")
+    print(f"parse_date: 現在の日時: {current_datetime}")
+    
     if date_str.lower() in ['今日', 'きょう', 'today']:
+        print("parse_date: 今日として処理")
         return current_datetime
     elif date_str.lower() in ['明日', 'あした', 'あす', 'tomorrow']:
-        return (current_datetime + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        print("parse_date: 明日として処理")
+        tomorrow = current_datetime + timedelta(days=1)
+        print(f"parse_date: 明日の日付: {tomorrow}")
+        return tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
     elif date_str.lower() in ['明後日', 'あさって', 'day after tomorrow']:
-        return (current_datetime + timedelta(days=2)).replace(hour=0, minute=0, second=0, microsecond=0)
+        print("parse_date: 明後日として処理")
+        day_after_tomorrow = current_datetime + timedelta(days=2)
+        print(f"parse_date: 明後日の日付: {day_after_tomorrow}")
+        return day_after_tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
     
     # その他の日付表現を解析
     parsed_date = dateparser.parse(date_str, languages=['ja'])
     if parsed_date:
+        print(f"parse_date: 解析された日付: {parsed_date}")
         # タイムゾーンを日本時間に設定
         if parsed_date.tzinfo is None:
             parsed_date = parsed_date.replace(tzinfo=JST)
         else:
             parsed_date = parsed_date.astimezone(JST)
+        print(f"parse_date: タイムゾーン設定後: {parsed_date}")
         
         # 日付が過去の場合は翌日に設定
         if parsed_date.date() < current_datetime.date():
+            print(f"parse_date: 過去の日付を翌日に設定: {parsed_date.date()} -> {parsed_date.date() + timedelta(days=1)}")
             parsed_date = (parsed_date + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         
         return parsed_date
     
     # 日付が解析できない場合は今日の日付を使用
+    print("parse_date: 日付が解析できないため今日の日付を使用")
     return current_datetime
 
 def keep_alive():
@@ -172,12 +186,17 @@ def handle_task_registration(user_id: str, task_content: str, date: str, time: s
     try:
         # 現在の日時を取得
         current_datetime = get_current_jst_datetime()
+        print(f"現在の日時: {current_datetime}")
         
         # 日付のバリデーション
         task_date = parse_date(date)
+        print(f"タスクの日付: {task_date}")
+        print(f"タスクの日付（日付部分）: {task_date.date()}")
+        print(f"現在の日付（日付部分）: {current_datetime.date()}")
         
         # 日付の比較（日付部分のみ）
         if task_date.date() < current_datetime.date():
+            print(f"日付比較: {task_date.date()} < {current_datetime.date()}")
             return f'過去の日付にはタスクを登録できません。今日以降の日付を指定してください。'
         
         # 時間のバリデーション
@@ -186,10 +205,12 @@ def handle_task_registration(user_id: str, task_content: str, date: str, time: s
                 # 時間をdatetimeオブジェクトに変換
                 task_time = datetime.strptime(time, '%H:%M').time()
                 task_datetime = task_date.replace(hour=task_time.hour, minute=task_time.minute)
+                print(f"タスクの日時: {task_datetime}")
                 
                 # 同じ日付の場合のみ時間を比較
                 if task_date.date() == current_datetime.date():
                     if task_datetime < current_datetime:
+                        print(f"時間比較: {task_datetime} < {current_datetime}")
                         return f'過去の時間にはタスクを登録できません。現在時刻以降の時間を指定してください。'
             except ValueError:
                 return f'時間の形式が正しくありません。HH:MM形式で指定してください。'
@@ -211,6 +232,7 @@ def handle_task_registration(user_id: str, task_content: str, date: str, time: s
         time_str = f' {time}' if time else ''
         return f'タスクを登録しました:\n{date_str}{time_str} {task_content}'
     except Exception as e:
+        print(f"エラー: {str(e)}")
         return f'タスクの登録に失敗しました: {str(e)}'
 
 def handle_task_completion(user_id: str, task_content: str) -> str:
