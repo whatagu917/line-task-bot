@@ -9,6 +9,9 @@ from dotenv import load_dotenv
 from supabase import create_client, Client
 from datetime import datetime, time
 import re
+import threading
+import requests
+import time as time_module
 
 # 環境変数の読み込み
 load_dotenv()
@@ -27,6 +30,26 @@ supabase: Client = create_client(
 )
 
 app = FastAPI()
+
+# スリープ防止のための自己ping
+RENDER_URL = os.getenv('RENDER_URL')
+
+def keep_alive():
+    while True:
+        try:
+            if RENDER_URL:
+                requests.get(RENDER_URL)
+                print("Ping sent successfully")
+        except Exception as e:
+            print(f"Ping failed: {str(e)}")
+        time_module.sleep(60 * 14)  # 14分ごとにping
+
+@app.on_event("startup")
+async def startup_event():
+    if RENDER_URL:
+        thread = threading.Thread(target=keep_alive, daemon=True)
+        thread.start()
+        print("Keep-alive thread started")
 
 @app.get("/")
 async def root():
