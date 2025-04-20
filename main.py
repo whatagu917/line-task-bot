@@ -14,6 +14,7 @@ import requests
 import time as time_module
 import openai
 from typing import Optional, Dict, Any
+from zoneinfo import ZoneInfo
 
 # 環境変数の読み込み
 load_dotenv()
@@ -39,6 +40,13 @@ app = FastAPI()
 # スリープ防止のための自己ping
 RENDER_URL = os.getenv('RENDER_URL')
 PORT = int(os.getenv('PORT', 10000))
+
+# タイムゾーンの設定
+JST = ZoneInfo('Asia/Tokyo')
+
+def get_current_jst_date() -> datetime:
+    """現在の日本時間を返す"""
+    return datetime.now(JST)
 
 def keep_alive():
     while True:
@@ -117,7 +125,9 @@ def handle_task_registration(user_id: str, task_content: str, date: str, time: s
         supabase.table('tasks').insert(data).execute()
         
         # 日付と時刻の表示用文字列を作成
-        date_str = '今日' if date == datetime.now().date().isoformat() else datetime.strptime(date, '%Y-%m-%d').strftime('%m/%d')
+        current_date = get_current_jst_date().date()
+        task_date = datetime.strptime(date, '%Y-%m-%d').date()
+        date_str = '今日' if task_date == current_date else task_date.strftime('%m/%d')
         time_str = f' {time}' if time else ''
         
         return f'タスクを登録しました:\n{date_str}{time_str} {task_content}'
@@ -139,16 +149,20 @@ def handle_task_list(user_id: str, date: str = None) -> str:
         if date:
             query = query.eq('scheduled_date', date)
         else:
-            query = query.eq('scheduled_date', datetime.now().date().isoformat())
+            query = query.eq('scheduled_date', get_current_jst_date().date().isoformat())
         
         response = query.order('scheduled_time').execute()
         tasks = response.data
         
         if not tasks:
-            date_str = '今日' if not date else datetime.strptime(date, '%Y-%m-%d').strftime('%m/%d')
+            current_date = get_current_jst_date().date()
+            date_str = '今日' if not date else datetime.strptime(date, '%Y-%m-%d').date()
+            date_str = '今日' if date_str == current_date else date_str.strftime('%m/%d')
             return f'{date_str}のタスクはありません'
         
-        date_str = '今日' if not date else datetime.strptime(date, '%Y-%m-%d').strftime('%m/%d')
+        current_date = get_current_jst_date().date()
+        task_date = current_date if not date else datetime.strptime(date, '%Y-%m-%d').date()
+        date_str = '今日' if task_date == current_date else task_date.strftime('%m/%d')
         task_list = [f'【{date_str}のタスク】']
         for task in tasks:
             status = '✅' if task['is_done'] else '⏳'
