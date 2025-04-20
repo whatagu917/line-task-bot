@@ -78,15 +78,23 @@ def parse_date(date_str: str) -> datetime:
         print("parse_date: 明日として処理")
         tomorrow = current_datetime + timedelta(days=1)
         print(f"parse_date: 明日の日付: {tomorrow}")
-        return tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
+        return tomorrow
     elif date_str.lower() in ['明後日', 'あさって', 'day after tomorrow']:
         print("parse_date: 明後日として処理")
         day_after_tomorrow = current_datetime + timedelta(days=2)
         print(f"parse_date: 明後日の日付: {day_after_tomorrow}")
-        return day_after_tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
+        return day_after_tomorrow
     
     # その他の日付表現を解析
-    parsed_date = dateparser.parse(date_str, languages=['ja'])
+    # 現在の年を基準に日付を解析
+    parsed_date = dateparser.parse(
+        date_str,
+        languages=['ja'],
+        settings={
+            'RELATIVE_BASE': current_datetime,
+            'PREFER_DATES_FROM': 'future'
+        }
+    )
     if parsed_date:
         print(f"parse_date: 解析された日付: {parsed_date}")
         # タイムゾーンを日本時間に設定
@@ -99,7 +107,7 @@ def parse_date(date_str: str) -> datetime:
         # 日付が過去の場合は翌日に設定
         if parsed_date.date() < current_datetime.date():
             print(f"parse_date: 過去の日付を翌日に設定: {parsed_date.date()} -> {parsed_date.date() + timedelta(days=1)}")
-            parsed_date = (parsed_date + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+            parsed_date = parsed_date + timedelta(days=1)
         
         return parsed_date
     
