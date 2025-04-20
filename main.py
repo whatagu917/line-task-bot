@@ -170,7 +170,13 @@ async def root():
     return {"message": "LINE Task Management Bot is running!"}
 
 def get_system_prompt() -> str:
-    return """あなたはタスク管理アシスタントです。ユーザーのメッセージを解析し、適切なアクションを判断してください。
+    """システムプロンプトを生成する"""
+    current_datetime = get_current_jst_datetime()
+    current_date = current_datetime.strftime('%Y-%m-%d')
+    
+    return f"""あなたはタスク管理アシスタントです。ユーザーのメッセージを解析し、適切なアクションを判断してください。
+
+現在の日付は {current_date} です。この日付を基準として相対的な日付（今日、明日、明後日など）を判断してください。
 
 アクションの種類：
 1. register: タスクの登録
@@ -181,13 +187,19 @@ def get_system_prompt() -> str:
 6. current_time: 現在の日時を確認
 
 応答は以下のJSON形式で返してください：
-{
+{{
     "action": "register" | "complete" | "list" | "list_date" | "remind" | "current_time",
     "task_content": "タスクの内容",
     "date": "日付（YYYY-MM-DD形式）",
     "time": "時間（HH:MM形式）",
     "remind_time": "リマインド時間（HH:MM形式）"
-}
+}}
+
+日付の指定について：
+- 今日の予定を聞かれた場合は、dateを空（null）にしてください
+- 明日の予定を聞かれた場合は、現在の日付に1日を加えた日付を指定してください
+- 明後日の予定を聞かれた場合は、現在の日付に2日を加えた日付を指定してください
+- 特定の日付を指定された場合は、その日付をそのまま使用してください
 """
 
 def process_message_with_llm(message: str) -> Dict[str, Any]:
