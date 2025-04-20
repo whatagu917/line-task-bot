@@ -278,23 +278,33 @@ def handle_task_list(user_id: str, date: str = None) -> str:
     """タスク一覧を表示する"""
     try:
         current_datetime = get_current_jst_datetime()
+        print(f"handle_task_list: 現在の日時 = {current_datetime}")
+        print(f"handle_task_list: 日付部分 = {current_datetime.date()}")
         
-        query = supabase.table('tasks').select('*').eq('user_id', user_id)
+        # 日付の処理
         if date:
-            query = query.eq('scheduled_date', date)
+            print(f"handle_task_list: 指定された日付 = {date}")
+            # 日付文字列をdatetimeオブジェクトに変換
+            task_date = parse_date(date)
+            print(f"handle_task_list: 解析された日付 = {task_date}")
+            query_date = task_date.strftime('%Y-%m-%d')
         else:
-            query = query.eq('scheduled_date', current_datetime.date().isoformat())
+            print(f"handle_task_list: 今日の日付を使用 = {current_datetime.date().isoformat()}")
+            query_date = current_datetime.date().isoformat()
+            task_date = current_datetime
         
+        # タスクの取得
+        query = supabase.table('tasks').select('*').eq('user_id', user_id).eq('scheduled_date', query_date)
         response = query.order('scheduled_time').execute()
         tasks = response.data
+        print(f"handle_task_list: 取得したタスク数 = {len(tasks)}")
         
         if not tasks:
-            date_str = '今日' if not date else datetime.strptime(date, '%Y-%m-%d').date()
-            date_str = '今日' if date_str == current_datetime.date() else date_str.strftime('%m/%d')
+            date_str = '今日' if task_date.date() == current_datetime.date() else task_date.strftime('%m/%d')
             return f'{date_str}のタスクはありません'
         
-        task_date = current_datetime.date() if not date else datetime.strptime(date, '%Y-%m-%d').date()
-        date_str = '今日' if task_date == current_datetime.date() else task_date.strftime('%m/%d')
+        # タスク一覧の作成
+        date_str = '今日' if task_date.date() == current_datetime.date() else task_date.strftime('%m/%d')
         task_list = [f'【{date_str}のタスク】']
         for task in tasks:
             status = '✅' if task['is_done'] else '⏳'
@@ -303,6 +313,7 @@ def handle_task_list(user_id: str, date: str = None) -> str:
         
         return '\n'.join(task_list)
     except Exception as e:
+        print(f"handle_task_list: エラー発生 = {str(e)}")
         return f'タスク一覧の取得に失敗しました: {str(e)}'
 
 def handle_reminder(user_id: str, date: str, time: str) -> str:
@@ -329,6 +340,8 @@ def handle_reminder(user_id: str, date: str, time: str) -> str:
 def handle_current_time() -> str:
     """現在の日時を返す"""
     current_datetime = get_current_jst_datetime()
+    print(f"handle_current_time: 現在の日時 = {current_datetime}")
+    print(f"handle_current_time: 日付部分 = {current_datetime.date()}")
     return f'現在の日時は {current_datetime.strftime("%Y年%m月%d日 %H時%M分")} です。'
 
 @app.post("/callback")
