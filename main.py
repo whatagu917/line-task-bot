@@ -92,14 +92,32 @@ def parse_date(date_str: str) -> datetime:
         return day_after_tomorrow
     
     # その他の日付表現を解析
+    print(f"parse_date: dateparserで解析を試みます: {date_str}")
+    print(f"parse_date: 基準日時: {current_datetime}")
+    
+    # 日付文字列がYYYY-MM-DD形式の場合
+    if re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
+        try:
+            year, month, day = map(int, date_str.split('-'))
+            parsed_date = datetime(year, month, day, tzinfo=JST)
+            print(f"parse_date: YYYY-MM-DD形式として解析: {parsed_date}")
+            return parsed_date
+        except ValueError:
+            print("parse_date: YYYY-MM-DD形式の解析に失敗")
+    
     parsed_date = dateparser.parse(
         date_str,
         languages=['ja'],
         settings={
             'RELATIVE_BASE': current_datetime,
-            'PREFER_DATES_FROM': 'future'
+            'PREFER_DATES_FROM': 'future',
+            'RETURN_AS_TIMEZONE_AWARE': True,
+            'TIMEZONE': 'Asia/Tokyo'
         }
     )
+    
+    print(f"parse_date: dateparserの解析結果: {parsed_date}")
+    
     if parsed_date:
         print(f"parse_date: 解析された日付: {parsed_date}")
         # タイムゾーンを日本時間に設定
