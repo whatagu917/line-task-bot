@@ -49,6 +49,38 @@ def get_current_jst_date() -> datetime:
     """現在の日本時間を返す"""
     return datetime.now(JST)
 
+def get_current_jst_time() -> str:
+    """現在の日本時間をHH:MM形式で返す"""
+    return datetime.now(JST).strftime('%H:%M')
+
+def parse_date(date_str: str) -> datetime:
+    """日付文字列を日本時間のdatetimeオブジェクトに変換する"""
+    if not date_str:
+        return get_current_jst_date()
+    
+    # 日本語の日付表現を処理
+    current_date = get_current_jst_date()
+    if date_str.lower() in ['今日', 'きょう', 'today']:
+        return current_date
+    elif date_str.lower() in ['明日', 'あした', 'あす', 'tomorrow']:
+        return current_date + timedelta(days=1)
+    elif date_str.lower() in ['明後日', 'あさって', 'day after tomorrow']:
+        return current_date + timedelta(days=2)
+    
+    # その他の日付表現を解析
+    parsed_date = dateparser.parse(date_str, languages=['ja'])
+    if parsed_date:
+        # タイムゾーンを日本時間に設定
+        if parsed_date.tzinfo is None:
+            parsed_date = parsed_date.replace(tzinfo=JST)
+        # 日付が過去の場合は翌日に設定
+        if parsed_date.date() < current_date.date():
+            parsed_date = parsed_date + timedelta(days=1)
+        return parsed_date
+    
+    # 日付が解析できない場合は今日の日付を使用
+    return current_date
+
 def keep_alive():
     while True:
         try:
@@ -118,9 +150,8 @@ def process_message_with_llm(message: str) -> Dict[str, Any]:
         
         # 日付の解析を改善
         if result.get('date'):
-            parsed_date = dateparser.parse(result['date'], languages=['ja'])
-            if parsed_date:
-                result['date'] = parsed_date.strftime('%Y-%m-%d')
+            parsed_date = parse_date(result['date'])
+            result['date'] = parsed_date.strftime('%Y-%m-%d')
         
         return result
     except Exception as e:
@@ -130,21 +161,38 @@ def process_message_with_llm(message: str) -> Dict[str, Any]:
 def handle_task_registration(user_id: str, task_content: str, date: str, time: str, remind_time: str = None) -> str:
     """タスクを登録する"""
     try:
+        # 日付のバリデーション
+        current_date = get_current_jst_date()
+        task_date = parse_date(date)
+        
+        # 過去の日付の場合はエラー
+        if task_date.date() < current_date.date():
+            return f'過去の日付にはタスクを登録できません。今日以降の日付を指定してください。'
+        
+        # 時間のバリデーション
+        if time:
+            current_time = get_current_jst_time()
+            if task_date.date() == current_date.date() and time < current_time:
+                return f'過去の時間にはタスクを登録できません。現在時刻以降の時間を指定してください。'
+        
         data = {
             'user_id': user_id,
             'content': task_content,
             'is_done': False,
-            'scheduled_date': date,
+            'scheduled_date': task_date.strftime('%Y-%m-%d'),
             'scheduled_time': time,
-            'remind_time': remind_time
+            'remind_time': remind_time,
+            'created_at': current_date.isoformat()
         }
         
         supabase.table('tasks').insert(data).execute()
         
         # 日付と時刻の表示用文字列を作成
-        current_date = get_current_jst_date().date()
-        task_date = datetime.strptime(date, '%Y-%m-%d').date()
-        date_str = '今日' if task_date == current_date else task_date.strftime('%m/%d')
+        date_str = '今日' if task_date.date() == current_date.date() else (
+            '明日' if task_date.date() == current_date.date() + timedelta(days=1) else
+            '明後日' if task_date.date() == current_date.date() + timedelta(days=2) else
+            task_date.strftime('%m/%d')
+        )
         time_str = f' {time}' if time else ''
         remind_str = f'\nリマインド: {remind_time}' if remind_time else ''
         
