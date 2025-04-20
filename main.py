@@ -53,6 +53,14 @@ def get_current_jst_time() -> str:
     """現在の日本時間をHH:MM形式で返す"""
     return datetime.now(JST).strftime('%H:%M')
 
+def get_current_jst_datetime() -> datetime:
+    """現在の日本時間をdatetimeオブジェクトとして返す"""
+    return datetime.now(JST)
+
+def format_jst_datetime(dt: datetime) -> str:
+    """datetimeオブジェクトを日本時間の文字列に変換する"""
+    return dt.astimezone(JST).strftime('%Y-%m-%d %H:%M')
+
 def parse_date(date_str: str) -> datetime:
     """日付文字列を日本時間のdatetimeオブジェクトに変換する"""
     if not date_str:
@@ -161,18 +169,20 @@ def process_message_with_llm(message: str) -> Dict[str, Any]:
 def handle_task_registration(user_id: str, task_content: str, date: str, time: str, remind_time: str = None) -> str:
     """タスクを登録する"""
     try:
+        # 現在の日時を取得
+        current_datetime = get_current_jst_datetime()
+        
         # 日付のバリデーション
-        current_date = get_current_jst_date()
         task_date = parse_date(date)
         
         # 過去の日付の場合はエラー
-        if task_date.date() < current_date.date():
+        if task_date.date() < current_datetime.date():
             return f'過去の日付にはタスクを登録できません。今日以降の日付を指定してください。'
         
         # 時間のバリデーション
         if time:
-            current_time = get_current_jst_time()
-            if task_date.date() == current_date.date() and time < current_time:
+            current_time = current_datetime.strftime('%H:%M')
+            if task_date.date() == current_datetime.date() and time < current_time:
                 return f'過去の時間にはタスクを登録できません。現在時刻以降の時間を指定してください。'
         
         data = {
@@ -182,15 +192,15 @@ def handle_task_registration(user_id: str, task_content: str, date: str, time: s
             'scheduled_date': task_date.strftime('%Y-%m-%d'),
             'scheduled_time': time,
             'remind_time': remind_time,
-            'created_at': current_date.isoformat()
+            'created_at': format_jst_datetime(current_datetime)
         }
         
         supabase.table('tasks').insert(data).execute()
         
         # 日付と時刻の表示用文字列を作成
-        date_str = '今日' if task_date.date() == current_date.date() else (
-            '明日' if task_date.date() == current_date.date() + timedelta(days=1) else
-            '明後日' if task_date.date() == current_date.date() + timedelta(days=2) else
+        date_str = '今日' if task_date.date() == current_datetime.date() else (
+            '明日' if task_date.date() == current_datetime.date() + timedelta(days=1) else
+            '明後日' if task_date.date() == current_datetime.date() + timedelta(days=2) else
             task_date.strftime('%m/%d')
         )
         time_str = f' {time}' if time else ''
@@ -211,24 +221,24 @@ def handle_task_completion(user_id: str, task_content: str) -> str:
 def handle_task_list(user_id: str, date: str = None) -> str:
     """タスク一覧を表示する"""
     try:
+        current_datetime = get_current_jst_datetime()
+        
         query = supabase.table('tasks').select('*').eq('user_id', user_id)
         if date:
             query = query.eq('scheduled_date', date)
         else:
-            query = query.eq('scheduled_date', get_current_jst_date().date().isoformat())
+            query = query.eq('scheduled_date', current_datetime.date().isoformat())
         
         response = query.order('scheduled_time').execute()
         tasks = response.data
         
         if not tasks:
-            current_date = get_current_jst_date().date()
             date_str = '今日' if not date else datetime.strptime(date, '%Y-%m-%d').date()
-            date_str = '今日' if date_str == current_date else date_str.strftime('%m/%d')
+            date_str = '今日' if date_str == current_datetime.date() else date_str.strftime('%m/%d')
             return f'{date_str}のタスクはありません'
         
-        current_date = get_current_jst_date().date()
-        task_date = current_date if not date else datetime.strptime(date, '%Y-%m-%d').date()
-        date_str = '今日' if task_date == current_date else task_date.strftime('%m/%d')
+        task_date = current_datetime.date() if not date else datetime.strptime(date, '%Y-%m-%d').date()
+        date_str = '今日' if task_date == current_datetime.date() else task_date.strftime('%m/%d')
         task_list = [f'【{date_str}のタスク】']
         for task in tasks:
             status = '✅' if task['is_done'] else '⏳'
