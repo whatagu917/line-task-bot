@@ -71,9 +71,9 @@ def parse_date(date_str: str) -> datetime:
     if date_str.lower() in ['今日', 'きょう', 'today']:
         return current_datetime
     elif date_str.lower() in ['明日', 'あした', 'あす', 'tomorrow']:
-        return current_datetime + timedelta(days=1)
+        return (current_datetime + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
     elif date_str.lower() in ['明後日', 'あさって', 'day after tomorrow']:
-        return current_datetime + timedelta(days=2)
+        return (current_datetime + timedelta(days=2)).replace(hour=0, minute=0, second=0, microsecond=0)
     
     # その他の日付表現を解析
     parsed_date = dateparser.parse(date_str, languages=['ja'])
@@ -81,9 +81,13 @@ def parse_date(date_str: str) -> datetime:
         # タイムゾーンを日本時間に設定
         if parsed_date.tzinfo is None:
             parsed_date = parsed_date.replace(tzinfo=JST)
+        else:
+            parsed_date = parsed_date.astimezone(JST)
+        
         # 日付が過去の場合は翌日に設定
         if parsed_date.date() < current_datetime.date():
-            parsed_date = parsed_date + timedelta(days=1)
+            parsed_date = (parsed_date + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        
         return parsed_date
     
     # 日付が解析できない場合は今日の日付を使用
@@ -178,32 +182,32 @@ def handle_task_registration(user_id: str, task_content: str, date: str, time: s
         
         # 時間のバリデーション
         if time:
-            current_time = current_datetime.strftime('%H:%M')
-            if task_date.date() == current_datetime.date() and time < current_time:
-                return f'過去の時間にはタスクを登録できません。現在時刻以降の時間を指定してください。'
+            try:
+                task_time = datetime.strptime(time, '%H:%M').time()
+                task_datetime = task_date.replace(hour=task_time.hour, minute=task_time.minute)
+                
+                # 現在時刻と比較
+                if task_datetime < current_datetime:
+                    return f'過去の時間にはタスクを登録できません。現在時刻以降の時間を指定してください。'
+            except ValueError:
+                return f'時間の形式が正しくありません。HH:MM形式で指定してください。'
         
+        # タスクを登録
         data = {
             'user_id': user_id,
             'content': task_content,
-            'is_done': False,
-            'scheduled_date': task_date.strftime('%Y-%m-%d'),
-            'scheduled_time': time,
+            'date': task_date.strftime('%Y-%m-%d'),
+            'time': time,
             'remind_time': remind_time,
             'created_at': format_jst_datetime(current_datetime)
         }
         
         supabase.table('tasks').insert(data).execute()
         
-        # 日付と時刻の表示用文字列を作成
-        date_str = '今日' if task_date.date() == current_datetime.date() else (
-            '明日' if task_date.date() == current_datetime.date() + timedelta(days=1) else
-            '明後日' if task_date.date() == current_datetime.date() + timedelta(days=2) else
-            task_date.strftime('%m/%d')
-        )
+        # 登録完了メッセージを生成
+        date_str = task_date.strftime('%Y年%m月%d日')
         time_str = f' {time}' if time else ''
-        remind_str = f'\nリマインド: {remind_time}' if remind_time else ''
-        
-        return f'タスクを登録しました:\n{date_str}{time_str} {task_content}{remind_str}'
+        return f'タスクを登録しました:\n{date_str}{time_str} {task_content}'
     except Exception as e:
         return f'タスクの登録に失敗しました: {str(e)}'
 
