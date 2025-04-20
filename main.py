@@ -76,17 +76,22 @@ def parse_date(date_str: str) -> datetime:
         return current_datetime
     elif date_str.lower() in ['明日', 'あした', 'あす', 'tomorrow']:
         print("parse_date: 明日として処理")
-        tomorrow = current_datetime + timedelta(days=1)
+        # 現在の日付を取得し、時刻を0時に設定
+        current_date = current_datetime.date()
+        tomorrow_date = current_date + timedelta(days=1)
+        tomorrow = datetime.combine(tomorrow_date, datetime.min.time(), tzinfo=JST)
         print(f"parse_date: 明日の日付: {tomorrow}")
         return tomorrow
     elif date_str.lower() in ['明後日', 'あさって', 'day after tomorrow']:
         print("parse_date: 明後日として処理")
-        day_after_tomorrow = current_datetime + timedelta(days=2)
+        # 現在の日付を取得し、時刻を0時に設定
+        current_date = current_datetime.date()
+        day_after_tomorrow_date = current_date + timedelta(days=2)
+        day_after_tomorrow = datetime.combine(day_after_tomorrow_date, datetime.min.time(), tzinfo=JST)
         print(f"parse_date: 明後日の日付: {day_after_tomorrow}")
         return day_after_tomorrow
     
     # その他の日付表現を解析
-    # 現在の年を基準に日付を解析
     parsed_date = dateparser.parse(
         date_str,
         languages=['ja'],
