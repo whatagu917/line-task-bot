@@ -276,8 +276,8 @@ def handle_task_registration(user_id: str, task_content: str, date: str, time: s
         data = {
             'user_id': user_id,
             'content': task_content,
-            'date': task_date.strftime('%Y-%m-%d'),
-            'time': time,
+            'scheduled_date': task_date.strftime('%Y-%m-%d'),
+            'scheduled_time': time,
             'remind_time': remind_time,
             'created_at': format_jst_datetime(current_datetime)
         }
