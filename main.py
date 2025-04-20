@@ -176,19 +176,21 @@ def handle_task_registration(user_id: str, task_content: str, date: str, time: s
         # 日付のバリデーション
         task_date = parse_date(date)
         
-        # 過去の日付の場合はエラー
+        # 日付の比較（日付部分のみ）
         if task_date.date() < current_datetime.date():
             return f'過去の日付にはタスクを登録できません。今日以降の日付を指定してください。'
         
         # 時間のバリデーション
         if time:
             try:
+                # 時間をdatetimeオブジェクトに変換
                 task_time = datetime.strptime(time, '%H:%M').time()
                 task_datetime = task_date.replace(hour=task_time.hour, minute=task_time.minute)
                 
-                # 現在時刻と比較
-                if task_datetime < current_datetime:
-                    return f'過去の時間にはタスクを登録できません。現在時刻以降の時間を指定してください。'
+                # 同じ日付の場合のみ時間を比較
+                if task_date.date() == current_datetime.date():
+                    if task_datetime < current_datetime:
+                        return f'過去の時間にはタスクを登録できません。現在時刻以降の時間を指定してください。'
             except ValueError:
                 return f'時間の形式が正しくありません。HH:MM形式で指定してください。'
         
