@@ -203,39 +203,101 @@ def get_system_prompt() -> str:
 """
 
 def process_message_with_llm(message: str) -> Dict[str, Any]:
-    """LLMを使用してメッセージを処理し、アクションを判断する"""
+    """メッセージを処理し、アクションを判断する"""
     try:
         print(f"process_message_with_llm: 入力メッセージ = {message}")
         
-        client = openai.OpenAI()
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": get_system_prompt()},
-                {"role": "user", "content": message}
-            ],
-            temperature=0.3
-        )
+        # 現在の日時を取得
+        current_datetime = get_current_jst_datetime()
         
-        # 応答をJSONとして解析
-        import json
-        result = json.loads(response.choices[0].message.content)
-        print(f"process_message_with_llm: LLM応答 = {result}")
+        # デフォルトの結果
+        result = {
+            "action": None,
+            "task_content": None,
+            "date": None,
+            "time": None,
+            "remind_time": None
+        }
         
-        # 日付の解析を改善
-        if result.get('date'):
-            print(f"process_message_with_llm: 日付の解析前 = {result['date']}")
-            # 今日の予定を要求している場合は日付を空にする
-            if result['date'].lower() in ['今日', 'きょう', 'today']:
-                result['date'] = None
-            else:
-                parsed_date = parse_date(result['date'])
-                result['date'] = parsed_date.strftime('%Y-%m-%d')
-            print(f"process_message_with_llm: 日付の解析後 = {result['date']}")
+        # アクションの判断
+        message_lower = message.lower()
         
+        # タスク登録のパターン
+        if any(word in message_lower for word in ['登録', '追加', '予定', '予約', 'スケジュール']):
+            result["action"] = "register"
+            
+            # 日付の解析
+            if any(word in message_lower for word in ['今日', 'きょう', 'today']):
+                result["date"] = None
+            elif any(word in message_lower for word in ['明日', 'あした', 'あす', 'tomorrow']):
+                tomorrow = current_datetime + timedelta(days=1)
+                result["date"] = tomorrow.strftime('%Y-%m-%d')
+            elif any(word in message_lower for word in ['明後日', 'あさって', 'day after tomorrow']):
+                day_after_tomorrow = current_datetime + timedelta(days=2)
+                result["date"] = day_after_tomorrow.strftime('%Y-%m-%d')
+            
+            # 時間の解析
+            time_pattern = r'(\d{1,2}):(\d{2})'
+            time_match = re.search(time_pattern, message)
+            if time_match:
+                result["time"] = f"{int(time_match.group(1)):02d}:{time_match.group(2)}"
+            
+            # タスク内容の抽出
+            content = message
+            if result["date"]:
+                content = content.replace("明日", "").replace("明後日", "").replace("today", "").replace("tomorrow", "").replace("day after tomorrow", "")
+            if result["time"]:
+                content = content.replace(result["time"], "")
+            result["task_content"] = content.strip()
+            
+        # タスク完了のパターン
+        elif any(word in message_lower for word in ['完了', '終了', '終わった', 'done']):
+            result["action"] = "complete"
+            result["task_content"] = message.replace("完了", "").replace("終了", "").replace("終わった", "").replace("done", "").strip()
+            
+        # タスク一覧のパターン
+        elif any(word in message_lower for word in ['一覧', 'リスト', '予定', 'スケジュール']):
+            result["action"] = "list"
+            
+            # 日付の解析
+            if any(word in message_lower for word in ['今日', 'きょう', 'today']):
+                result["date"] = None
+            elif any(word in message_lower for word in ['明日', 'あした', 'あす', 'tomorrow']):
+                tomorrow = current_datetime + timedelta(days=1)
+                result["date"] = tomorrow.strftime('%Y-%m-%d')
+            elif any(word in message_lower for word in ['明後日', 'あさって', 'day after tomorrow']):
+                day_after_tomorrow = current_datetime + timedelta(days=2)
+                result["date"] = day_after_tomorrow.strftime('%Y-%m-%d')
+            
+        # リマインドのパターン
+        elif any(word in message_lower for word in ['リマインド', 'remind']):
+            result["action"] = "remind"
+            
+            # 日付の解析
+            if any(word in message_lower for word in ['今日', 'きょう', 'today']):
+                result["date"] = None
+            elif any(word in message_lower for word in ['明日', 'あした', 'あす', 'tomorrow']):
+                tomorrow = current_datetime + timedelta(days=1)
+                result["date"] = tomorrow.strftime('%Y-%m-%d')
+            elif any(word in message_lower for word in ['明後日', 'あさって', 'day after tomorrow']):
+                day_after_tomorrow = current_datetime + timedelta(days=2)
+                result["date"] = day_after_tomorrow.strftime('%Y-%m-%d')
+            
+            # 時間の解析
+            time_pattern = r'(\d{1,2}):(\d{2})'
+            time_match = re.search(time_pattern, message)
+            if time_match:
+                result["remind_time"] = f"{int(time_match.group(1)):02d}:{time_match.group(2)}"
+            
+        # 現在時刻のパターン
+        elif any(word in message_lower for word in ['今何時', '時間', '時刻', 'time']):
+            result["action"] = "current_time"
+        
+        print(f"process_message_with_llm: 解析結果 = {result}")
         return result
+        
     except Exception as e:
-        print(f"Error processing message with LLM: {str(e)}")
+        print(f"Error processing message: {str(e)}")
         return None
 
 def handle_task_registration(user_id: str, task_content: str, date: str, time: str, remind_time: str = None) -> str:
