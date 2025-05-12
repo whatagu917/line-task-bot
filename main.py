@@ -16,7 +16,7 @@ import openai
 from typing import Optional, Dict, Any
 from zoneinfo import ZoneInfo
 import dateparser
-from linebot.v3.exceptions import RemoteDisconnected
+from requests.exceptions import RemoteDisconnected
 
 # 環境変数の読み込み
 load_dotenv()
