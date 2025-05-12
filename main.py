@@ -405,7 +405,7 @@ async def callback(request: Request):
 
 @handler.add(MessageEvent, message=TextMessageContent)
 @retry_on_error()
-def handle_message(event):
+def handle_message(event, destination):
     user_id = event.source.user_id
     message = event.message.text
     
