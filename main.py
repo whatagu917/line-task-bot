@@ -16,6 +16,7 @@ import openai
 from typing import Optional, Dict, Any
 from zoneinfo import ZoneInfo
 import dateparser
+from linebot.v3.exceptions import RemoteDisconnected
 
 # 環境変数の読み込み
 load_dotenv()
@@ -342,7 +343,7 @@ def handle_task_list(user_id: str, date: str = None) -> str:
         return '\n'.join(task_list)
     except Exception as e:
         print(f"handle_task_list: エラー発生 = {str(e)}")
-        return f'タスク一覧の取得に失敗しました: {str(e)}'
+        return f'の取得に失敗しましたタスク一覧: {str(e)}'
 
 def handle_reminder(user_id: str, date: str, time: str) -> str:
     """指定された日時のタスクをリマインドする"""
@@ -387,59 +388,81 @@ async def callback(request: Request):
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
-    user_id = event.source.user_id
-    message = event.message.text
-    
-    # メッセージが空の場合は処理をスキップ
-    if not message.strip():
-        return
+    max_retries = 5  # 最大リトライ回数
+    retry_delay = 1  # 固定の待機時間（秒）
 
-    # LLMでメッセージを処理
-    result = process_message_with_llm(message)
-    if not result:
-        return
+    for attempt in range(max_retries):
+        try:
+            # 既存の処理を実行
+            user_id = event.source.user_id
+            message = event.message.text
+            
+            # メッセージが空の場合は処理をスキップ
+            if not message.strip():
+                return
 
-    # アクションに応じて処理
-    try:
-        response_text = ""
-        action = result['action']
-        if action == 'register':
-            if not result.get('task_content'):
-                raise ValueError("タスクの内容が指定されていません")
-            response_text = handle_task_registration(user_id, result['task_content'], result['date'], result['time'], result.get('remind_time'))
-        elif action == 'complete':
-            if not result.get('task_content'):
-                raise ValueError("完了するタスクが指定されていません")
-            response_text = handle_task_completion(user_id, result['task_content'])
-        elif action == 'list':
-            response_text = handle_task_list(user_id)
-        elif action == 'list_date':
-            response_text = handle_task_list(user_id, result['date'])
-        elif action == 'remind':
-            response_text = handle_reminder(user_id, result['date'], result['time'])
-        elif action == 'current_time':
-            response_text = handle_current_time()
-        else:
-            raise ValueError("不明なアクションです")
-        
-        # 応答テキストが空の場合はエラーメッセージを設定
-        if not response_text:
-            response_text = "申し訳ありません。処理中にエラーが発生しました。もう一度お試しください。"
-        
-        line_bot_api.reply_message_with_http_info(
-            {
-                'replyToken': event.reply_token,
-                'messages': [TextMessage(text=response_text)]
-            }
-        )
-    except Exception as e:
-        print(f"Error in handle_message: {str(e)}")
-        line_bot_api.reply_message_with_http_info(
-            {
-                'replyToken': event.reply_token,
-                'messages': [TextMessage(text=f"申し訳ありません。エラーが発生しました: {str(e)}")]
-            }
-        )
+            # LLMでメッセージを処理
+            result = process_message_with_llm(message)
+            if not result:
+                return
+
+            # アクションに応じて処理
+            try:
+                response_text = ""
+                action = result['action']
+                if action == 'register':
+                    if not result.get('task_content'):
+                        raise ValueError("タスクの内容が指定されていません")
+                    response_text = handle_task_registration(user_id, result['task_content'], result['date'], result['time'], result.get('remind_time'))
+                elif action == 'complete':
+                    if not result.get('task_content'):
+                        raise ValueError("完了するタスクが指定されていません")
+                    response_text = handle_task_completion(user_id, result['task_content'])
+                elif action == 'list':
+                    response_text = handle_task_list(user_id)
+                elif action == 'list_date':
+                    response_text = handle_task_list(user_id, result['date'])
+                elif action == 'remind':
+                    response_text = handle_reminder(user_id, result['date'], result['time'])
+                elif action == 'current_time':
+                    response_text = handle_current_time()
+                else:
+                    raise ValueError("不明なアクションです")
+                
+                # 応答テキストが空の場合はエラーメッセージを設定
+                if not response_text:
+                    response_text = "申し訳ありません。処理中にエラーが発生しました。もう一度お試しください。"
+                
+                line_bot_api.reply_message_with_http_info(
+                    {
+                        'replyToken': event.reply_token,
+                        'messages': [TextMessage(text=response_text)]
+                    }
+                )
+                return  # 成功したら処理を終了
+            except Exception as e:
+                print(f"Error in handle_message: {str(e)}")
+                line_bot_api.reply_message_with_http_info(
+                    {
+                        'replyToken': event.reply_token,
+                        'messages': [TextMessage(text=f"申し訳ありません。エラーが発生しました: {str(e)}")]
+                    }
+                )
+                return  # エラーが発生したら処理を終了
+
+        except RemoteDisconnected as e:
+            if attempt < max_retries - 1:
+                print(f"接続が切断されました。{retry_delay}秒後に再試行します。（試行回数: {attempt + 1}/{max_retries}）")
+                time.sleep(retry_delay)  # 1秒待機
+            else:
+                # 最後の試行でも失敗した場合のみエラーメッセージを表示
+                print(f"最大リトライ回数に達しました: {str(e)}")
+                line_bot_api.reply_message_with_http_info(
+                    {
+                        'replyToken': event.reply_token,
+                        'messages': [TextMessage(text="申し訳ありません。接続エラーが発生しました。しばらく時間をおいて再度お試しください。")]
+                    }
+                )
 
 if __name__ == "__main__":
     import uvicorn
